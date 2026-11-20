@@ -1,0 +1,49 @@
+{
+	"name": "LurkAPI: TikTok profile to a sheet row",
+	"nodes": [
+		{
+			"parameters": {},
+			"name": "When clicking 'Test workflow'",
+			"type": "n8n-nodes-base.manualTrigger",
+			"typeVersion": 1,
+			"position": [0, 0]
+		},
+		{
+			"parameters": {
+				"resource": "tiktok",
+				"operation": "tiktok_profile",
+				"handle": "nike"
+			},
+			"name": "LurkAPI",
+			"type": "n8n-nodes-lurkapi.lurkApi",
+			"typeVersion": 1,
+			"position": [220, 0],
+			"credentials": {
+				"lurkApiApi": {
+					"id": "",
+					"name": "LurkAPI account"
+				}
+			}
+		},
+		{
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{ "id": "1", "name": "handle", "value": "={{ $json.user.uniqueId }}", "type": "string" },
+						{ "id": "2", "name": "followers", "value": "={{ $json.stats.followerCount }}", "type": "number" },
+						{ "id": "3", "name": "likes", "value": "={{ $json.stats.heartCount }}", "type": "number" }
+					]
+				},
+				"options": {}
+			},
+			"name": "Keep the counts",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [440, 0]
+		}
+	],
+	"connections": {
+		"When clicking 'Test workflow'": { "main": [[{ "node": "LurkAPI", "type": "main", "index": 0 }]] },
+		"LurkAPI": { "main": [[{ "node": "Keep the counts", "type": "main", "index": 0 }]] }
+	}
+}

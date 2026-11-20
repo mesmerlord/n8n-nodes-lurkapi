@@ -1,0 +1,62 @@
+# Publishes to npm with provenance (n8n requires it for verified nodes since 2026-05-01).
+#
+# Runs on:
+# - a version tag push (`npm run release` locally bumps, tags and pushes);
+# - a weekly schedule or a manual run: regenerates the operations from LurkAPI's live
+#   openapi.json and, only if they changed, commits, bumps the patch version, tags and publishes.
+#
+# One-time setup: on npmjs.com, package settings → Trusted Publishers → GitHub Actions,
+# repository mesmerlord/n8n-nodes-lurkapi, workflow publish.yml. Set no NPM_TOKEN secret:
+# OIDC needs npm >= 11.5.1, and a stale token overrides it.
+name: Publish
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm install -g npm@^11.5.1
+      - run: npm ci
+
+      - name: Regenerate from the live spec
+        id: regen
+        if: github.event_name != 'push'
+        run: |
+          npm run generate
+          if git diff --quiet; then
+            echo "No new endpoints or parameters."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "feat: regenerate operations from openapi.json"
+          npm version patch -m "chore: release %s"
+          git push --follow-tags
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Release
+        if: github.event_name == 'push' || steps.regen.outputs.changed == 'true'
+        # In GitHub Actions, n8n-node release runs lint and build, then npm publish with provenance.
+        run: npm run release
